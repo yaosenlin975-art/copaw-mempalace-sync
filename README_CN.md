@@ -1,5 +1,7 @@
 # CoPaw Mempalace 同步插件
 
+[English](README.md) | [中文](README_CN.md)
+
 一个 CoPaw 插件，自动将对话同步到 [MemPalace](https://github.com/milla-jovovich/mempalace)，实现跨会话的持久记忆。
 
 ## 功能特性

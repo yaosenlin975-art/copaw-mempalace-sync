@@ -1,5 +1,7 @@
 # CoPaw Mempalace Sync Plugin
 
+[English](README.md) | [中文](README_CN.md)
+
 A CoPaw plugin that automatically syncs conversations to [MemPalace](https://github.com/milla-jovovich/mempalace) for persistent memory across sessions.
 
 ## Features
