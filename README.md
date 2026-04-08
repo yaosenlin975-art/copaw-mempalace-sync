@@ -33,7 +33,28 @@ User Conversation → CoPaw Agent → post_reply Hook → Sync Script → MemPal
 
 ## Installation
 
-### Option 1: Automatic Installation (Recommended)
+### Option 1: Persistent Installation (Recommended)
+
+This method uses Python's `.pth` file mechanism to inject the hook **without modifying CoPaw source code**. This means the hook **survives CoPaw updates**.
+
+```bash
+cd copaw-mempalace-sync
+python install_persistent.py
+```
+
+**How it works:**
+1. A `.pth` file in `site-packages` auto-loads the patch module when Python starts
+2. The patch module monkey-patches `CoPawAgent._register_hooks` to add our hook
+3. No CoPaw source files are modified
+
+**To uninstall:**
+```bash
+python install_persistent.py --uninstall
+```
+
+### Option 2: Direct Patch Installation (Not Recommended)
+
+> ⚠️ **Warning:** This method modifies CoPaw source files and will be **overwritten on CoPaw updates**.
 
 ```bash
 cd copaw-mempalace-sync
@@ -46,7 +67,7 @@ The installer will:
 3. Patch `react_agent.py` to register the hook
 4. Install the sync script
 
-### Option 2: Manual Installation
+### Option 3: Manual Installation
 
 1. **Copy the hook file:**
    ```bash
@@ -191,13 +212,48 @@ set PYTHONIOENCODING=utf-8
 
 ```
 copaw-mempalace-sync/
-├── README.md                 # This file
-├── install.py                # Automatic installer
+├── README.md                     # This file
+├── LICENSE
+├── .gitignore
+├── install.py                    # Direct patch installer (not persistent)
+├── install_persistent.py         # Persistent installer (recommended)
+├── copaw_mempalace_patch.py      # Monkey patch module
 ├── hooks/
-│   └── mempalace_sync.py     # The post_reply hook
+│   └── mempalace_sync.py         # The post_reply hook
 └── scripts/
-    └── sync_mempalace.py     # Session sync script
+    └── sync_mempalace.py         # Session sync script
 ```
+
+## Persistence Explained
+
+### Why `.pth` Files Survive Updates
+
+Python's `.pth` file mechanism is a **Python feature**, not a CoPaw feature:
+
+1. `.pth` files live in `site-packages/` (Python's module directory)
+2. When you `pip install --upgrade copaw`, only the `copaw/` directory is replaced
+3. `.pth` files in `site-packages/` are **not touched** by pip updates
+
+### How the Monkey Patch Works
+
+```
+Python starts
+    ↓
+.pth file imports copaw_mempalace_patch.py
+    ↓
+Patch module intercepts CoPawAgent import
+    ↓
+Patches _register_hooks to add MempalaceSyncHook
+    ↓
+CoPaw starts with our hook installed
+```
+
+### Comparison
+
+| Method | Modifies Source | Survives Updates | Recommended |
+|--------|-----------------|------------------|-------------|
+| Persistent (.pth) | No | Yes | ✅ Yes |
+| Direct Patch | Yes | No | ❌ No |
 
 ## How the Hook Works
 
