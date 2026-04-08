@@ -2,6 +2,22 @@
 
 [English](README.md) | [中文](README_CN.md)
 
+---
+
+## 🤖 给人类用户：让你的 AI 助手自动安装
+
+**最快的方式：** 复制下面这段话发给你的 CoPaw 智能体：
+
+> 请阅读 https://github.com/yaosenlin975-art/copaw-mempalace-sync 的 README，帮我安装 Mempalace 同步插件。使用持久化安装方式。
+
+你的智能体会自动：
+1. 阅读本仓库
+2. 克隆代码
+3. 运行安装脚本
+4. 完成所有配置
+
+---
+
 一个 CoPaw 插件，自动将对话同步到 [MemPalace](https://github.com/milla-jovovich/mempalace)，实现跨会话的持久记忆。
 
 ## 功能特性

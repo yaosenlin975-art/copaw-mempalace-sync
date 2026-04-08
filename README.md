@@ -2,6 +2,18 @@
 
 [English](README.md) | [中文](README_CN.md)
 
+---
+
+## 🤖 For Humans: Let Your Agent Install This
+
+**Quickest way:** Copy the message below and send it to your CoPaw agent:
+
+> Please read the README at https://github.com/yaosenlin975-art/copaw-mempalace-sync and install the Mempalace sync plugin for me. Use the persistent installation method.
+
+Your agent will read this repo, run the installer, and configure everything automatically.
+
+---
+
 A CoPaw plugin that automatically syncs conversations to [MemPalace](https://github.com/milla-jovovich/mempalace) for persistent memory across sessions.
 
 ## Features
