@@ -34,7 +34,7 @@ class MempalaceSyncHook:
 
     Attributes:
         workspace_dir: The workspace directory containing sessions.
-        palace_dir: The mempalace palace directory.
+        palace_dir: The mempalace palace directory (auto-discovered).
         sync_script: Path to the sync script.
     """
 
@@ -48,15 +48,16 @@ class MempalaceSyncHook:
 
         Args:
             workspace_dir: The workspace directory containing sessions.
-            palace_dir: The mempalace palace directory (optional).
+            palace_dir: The mempalace palace directory (optional, auto-discovered if None).
             sync_script: Path to the sync script (optional).
         """
         self.workspace_dir = workspace_dir
-        self.palace_dir = palace_dir or os.path.join(
-            os.path.expanduser("~"),
-            ".mempalace",
-            "palace",
-        )
+
+        # Auto-discover palace directory if not specified
+        if palace_dir:
+            self.palace_dir = palace_dir
+        else:
+            self.palace_dir = self._discover_palace_dir()
 
         # Determine sync script path
         if sync_script:
@@ -65,6 +66,34 @@ class MempalaceSyncHook:
             # Default: look in plugin's scripts directory
             plugin_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
             self.sync_script = os.path.join(plugin_dir, "scripts", "sync_mempalace.py")
+
+    def _discover_palace_dir(self) -> str:
+        """Discover the palace directory using multiple strategies."""
+        # Try to import the discovery module
+        try:
+            # First try from the plugin directory
+            plugin_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            discovery_path = os.path.join(plugin_dir, "palace_discovery.py")
+
+            if os.path.exists(discovery_path):
+                import importlib.util
+
+                spec = importlib.util.spec_from_file_location(
+                    "palace_discovery", discovery_path
+                )
+                if spec and spec.loader:
+                    module = importlib.util.module_from_spec(spec)
+                    spec.loader.exec_module(module)
+                    return module.find_palace_dir(self.workspace_dir)
+        except Exception as e:
+            logger.debug(f"Failed to import discovery module: {e}")
+
+        # Fallback: use environment variable or default
+        env_home = os.environ.get("MEMPALACE_HOME")
+        if env_home:
+            return os.path.join(env_home, "palace")
+
+        return os.path.join(os.path.expanduser("~"), ".mempalace", "palace")
 
     async def __call__(
         self,

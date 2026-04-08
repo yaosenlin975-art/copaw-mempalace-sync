@@ -11,7 +11,8 @@ imports it into MemPalace.
 
 Environment variables:
     WORKSPACE_DIR: The workspace directory (default: ~/.copaw/workspaces/default)
-    PALACE_DIR: The mempalace palace directory (default: ~/.mempalace/palace)
+    PALACE_DIR: The mempalace palace directory (auto-discovered if not set)
+    MEMPALACE_HOME: Home directory of mempalace installation (optional)
     MEMPALACE_VENV: Path to mempalace venv python (optional, auto-detected)
 
 Requirements:
@@ -38,11 +39,37 @@ def get_workspace_dir() -> str:
 
 
 def get_palace_dir() -> str:
-    """Get the mempalace palace directory."""
-    return os.environ.get(
-        "PALACE_DIR",
-        os.path.join(os.path.expanduser("~"), ".mempalace", "palace"),
-    )
+    """Get the mempalace palace directory using discovery."""
+    # First check if explicitly set via environment
+    palace_dir = os.environ.get("PALACE_DIR")
+    if palace_dir and os.path.exists(palace_dir):
+        return palace_dir
+
+    # Use discovery module
+    try:
+        # Try to find discovery module relative to this script
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        discovery_path = os.path.join(script_dir, "..", "palace_discovery.py")
+
+        if os.path.exists(discovery_path):
+            import importlib.util
+
+            spec = importlib.util.spec_from_file_location(
+                "palace_discovery", discovery_path
+            )
+            if spec and spec.loader:
+                module = importlib.util.module_from_spec(spec)
+                spec.loader.exec_module(module)
+                return module.find_palace_dir(get_workspace_dir())
+    except Exception as e:
+        print(f"Discovery module error: {e}", file=sys.stderr)
+
+    # Fallback to environment variable or default
+    env_home = os.environ.get("MEMPALACE_HOME")
+    if env_home:
+        return os.path.join(env_home, "palace")
+
+    return os.path.join(os.path.expanduser("~"), ".mempalace", "palace")
 
 
 def find_mempalace_python() -> str | None:
@@ -59,6 +86,9 @@ def find_mempalace_python() -> str | None:
         python_exe = os.path.join(venv_path, "Scripts", "python.exe")
         if os.path.exists(python_exe):
             return python_exe
+        python_exe = os.path.join(venv_path, "bin", "python")
+        if os.path.exists(python_exe):
+            return python_exe
 
     # Auto-detect from workspace
     workspace_dir = get_workspace_dir()
@@ -66,6 +96,9 @@ def find_mempalace_python() -> str | None:
         os.path.join(workspace_dir, ".venv", "Scripts", "python.exe"),
         os.path.join(workspace_dir, "venv", "Scripts", "python.exe"),
         os.path.join(os.path.dirname(workspace_dir), ".venv", "Scripts", "python.exe"),
+        # Linux/Mac
+        os.path.join(workspace_dir, ".venv", "bin", "python"),
+        os.path.join(workspace_dir, "venv", "bin", "python"),
     ]
 
     for path in common_venv_paths:
@@ -243,6 +276,10 @@ def main():
     workspace_dir = get_workspace_dir()
     palace_dir = get_palace_dir()
     python_path = find_mempalace_python()
+
+    # Debug info (only shown if PALACE_DIR was not explicitly set)
+    if not os.environ.get("PALACE_DIR"):
+        print(f"Discovered palace: {palace_dir}", file=sys.stderr)
 
     # Get latest session file
     session_file = get_latest_session_file(workspace_dir)

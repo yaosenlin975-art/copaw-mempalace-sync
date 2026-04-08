@@ -8,6 +8,8 @@ A CoPaw plugin that automatically syncs conversations to [MemPalace](https://git
 - **Background Processing**: Non-blocking async operation
 - **Full-text Search**: Search your entire conversation history with semantic matching
 - **Palace Structure**: Organized memory with wings, rooms, and drawers
+- **Auto-Discovery**: Automatically finds your MemPalace installation
+- **Persistent**: Survives CoPaw updates
 
 ## How It Works
 
@@ -33,99 +35,67 @@ User Conversation → CoPaw Agent → post_reply Hook → Sync Script → MemPal
 
 ## Installation
 
-### Option 1: Persistent Installation (Recommended)
-
-This method uses Python's `.pth` file mechanism to inject the hook **without modifying CoPaw source code**. This means the hook **survives CoPaw updates**.
+### Quick Install (Recommended)
 
 ```bash
+git clone https://github.com/yaosenlin975-art/copaw-mempalace-sync.git
 cd copaw-mempalace-sync
 python install_persistent.py
 ```
 
-**How it works:**
-1. A `.pth` file in `site-packages` auto-loads the patch module when Python starts
-2. The patch module monkey-patches `CoPawAgent._register_hooks` to add our hook
-3. No CoPaw source files are modified
+The installer will:
+1. Install the discovery module to Python's site-packages
+2. Install the hook module to CoPaw
+3. Create a `.pth` file for auto-loading
+4. Optionally configure your MemPalace location
 
 **To uninstall:**
 ```bash
 python install_persistent.py --uninstall
 ```
 
-### Option 2: Direct Patch Installation (Not Recommended)
+## Palace Discovery
 
-> ⚠️ **Warning:** This method modifies CoPaw source files and will be **overwritten on CoPaw updates**.
+The plugin automatically finds your MemPalace palace directory using this priority:
 
-```bash
-cd copaw-mempalace-sync
-python install.py
+| Priority | Source | Description |
+|----------|--------|-------------|
+| 1 | `MEMPALACE_HOME` env var | System environment variable |
+| 2 | `.mempalace.json` | Workspace config file |
+| 3 | Auto-discovery | Via `pip show mempalace` |
+| 4 | Common locations | `~/.mempalace/palace`, etc. |
+| 5 | Default | `~/.mempalace/palace` |
+
+### Option 1: Environment Variable (System-wide)
+
+Set `MEMPALACE_HOME` to your mempalace directory:
+
+**Windows:**
+```cmd
+# Set as system environment variable via System Properties
+# Variable: MEMPALACE_HOME
+# Value: C:\Users\YourName\.mempalace
 ```
 
-The installer will:
-1. Copy the hook to CoPaw's hooks directory
-2. Update `hooks/__init__.py` to export the hook
-3. Patch `react_agent.py` to register the hook
-4. Install the sync script
-
-### Option 3: Manual Installation
-
-1. **Copy the hook file:**
-   ```bash
-   copy hooks\mempalace_sync.py "D:\Program Files\CoPaw\Lib\site-packages\copaw\agents\hooks\"
-   ```
-
-2. **Update `hooks/__init__.py`:**
-   ```python
-   # Add import
-   from .mempalace_sync import MempalaceSyncHook
-   
-   # Add to __all__
-   __all__ = [
-       "BootstrapHook",
-       "MemoryCompactionHook",
-       "MempalaceSyncHook",  # Add this line
-   ]
-   ```
-
-3. **Patch `react_agent.py`:**
-   ```python
-   # Add import (around line 30)
-   from .hooks import BootstrapHook, MemoryCompactionHook, MempalaceSyncHook
-   
-   # Add hook registration (after memory compaction hook, around line 445)
-   mempalace_sync_hook = MempalaceSyncHook(
-       workspace_dir=working_dir,
-   )
-   self.register_instance_hook(
-       hook_type="post_reply",
-       hook_name="mempalace_sync_hook",
-       hook=mempalace_sync_hook.__call__,
-   )
-   logger.debug("Registered mempalace sync hook")
-   ```
-
-4. **Copy the sync script:**
-   ```bash
-   copy scripts\sync_mempalace.py "D:\Program Files\CoPaw\scripts\"
-   ```
-
-## Configuration
-
-### Environment Variables (Optional)
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `WORKSPACE_DIR` | `~/.copaw/workspaces/default` | CoPaw workspace directory |
-| `PALACE_DIR` | `~/.mempalace/palace` | MemPalace palace directory |
-| `MEMPALACE_VENV` | Auto-detected | Path to mempalace venv python |
-
-### Custom Palace Directory
-
-To use a custom palace directory, set the `PALACE_DIR` environment variable:
-
+**Linux/Mac:**
 ```bash
-set PALACE_DIR=C:\path\to\your\palace
+# Add to ~/.bashrc or ~/.zshrc
+export MEMPALACE_HOME="$HOME/.mempalace"
 ```
+
+### Option 2: Workspace Config (Per-workspace)
+
+Create `.mempalace.json` in your workspace directory:
+
+```json
+{
+  "palace_dir": "C:\\Users\\YourName\\.mempalace\\palace"
+}
+```
+
+### Option 3: Auto-Discovery (No Configuration)
+
+If you installed mempalace in a standard location, the plugin will find it automatically. No configuration needed!
 
 ## Usage
 
@@ -139,19 +109,31 @@ Search your conversation history:
 
 ```bash
 # Activate your Python environment
-cd C:\Users\Administrator\.copaw\workspaces\default
+cd WORKING_DIR
 .venv\Scripts\activate
 
-# Set palace directory
-set PALACE_DIR=%USERPROFILE%\.mempalace\palace
-
-# Search
+# Search (palace location is auto-discovered)
 mempalace search "what we discussed about project X"
 mempalace search "error messages from last week"
 mempalace search "user preferences"
 ```
 
-### Check Status
+### Check Discovery Status
+
+```bash
+python -m palace_discovery
+```
+
+Output:
+```
+Palace directory: C:\Users\YourName\.mempalace\palace
+Exists: True
+Has drawers: True
+MEMPALACE_HOME: C:\Users\YourName\.mempalace
+Config file: C:\Users\YourName\.copaw\workspaces\default\.mempalace.json (exists: False)
+```
+
+### Check MemPalace Status
 
 ```bash
 mempalace status
@@ -173,37 +155,44 @@ Output:
 
 ## Troubleshooting
 
+### Palace Not Found
+
+1. Check discovery status:
+   ```bash
+   python -m palace_discovery
+   ```
+
+2. Set explicit configuration:
+   ```bash
+   # Option A: Environment variable
+   set MEMPALACE_HOME=C:\path\to\your\.mempalace
+
+   # Option B: Workspace config
+   echo {"palace_dir":"C:\\path\\to\\palace"} > .mempalace.json
+   ```
+
 ### Hook Not Triggering
 
-1. Check if CoPaw daemon was restarted after installation:
+1. Restart CoPaw daemon:
    ```bash
    copaw daemon restart
    ```
 
 2. Check CoPaw logs for hook registration:
    ```
-   INFO: Registered mempalace sync hook
+   Registered mempalace sync hook (via monkey patch)
    ```
 
-### Sync Script Not Found
+### MemPalace Not Installed
 
-Ensure the sync script is in the correct location:
-```
-D:\Program Files\CoPaw\scripts\sync_mempalace.py
-```
-
-### MemPalace Not Found
-
-Install MemPalace in your CoPaw virtual environment:
+Install MemPalace in your Python environment:
 ```bash
-cd C:\Users\Administrator\.copaw\workspaces\default
-.venv\Scripts\activate
 pip install mempalace
 ```
 
 ### Encoding Errors
 
-The script uses UTF-8 encoding. If you see encoding errors, ensure your environment supports UTF-8:
+The script uses UTF-8 encoding. If you see encoding errors:
 ```bash
 set PYTHONIOENCODING=utf-8
 ```
@@ -215,9 +204,9 @@ copaw-mempalace-sync/
 ├── README.md                     # This file
 ├── LICENSE
 ├── .gitignore
-├── install.py                    # Direct patch installer (not persistent)
+├── install.py                    # Direct patch installer (legacy)
 ├── install_persistent.py         # Persistent installer (recommended)
-├── copaw_mempalace_patch.py      # Monkey patch module
+├── palace_discovery.py           # Palace discovery module
 ├── hooks/
 │   └── mempalace_sync.py         # The post_reply hook
 └── scripts/
@@ -234,37 +223,19 @@ Python's `.pth` file mechanism is a **Python feature**, not a CoPaw feature:
 2. When you `pip install --upgrade copaw`, only the `copaw/` directory is replaced
 3. `.pth` files in `site-packages/` are **not touched** by pip updates
 
-### How the Monkey Patch Works
+### How It Works
 
 ```
 Python starts
     ↓
-.pth file imports copaw_mempalace_patch.py
+.pth file imports palace_discovery.py
     ↓
-Patch module intercepts CoPawAgent import
+Discovery module finds your MemPalace palace
     ↓
-Patches _register_hooks to add MempalaceSyncHook
+Hook monkey-patches CoPawAgent._register_hooks
     ↓
-CoPaw starts with our hook installed
+CoPaw starts with mempalace sync enabled
 ```
-
-### Comparison
-
-| Method | Modifies Source | Survives Updates | Recommended |
-|--------|-----------------|------------------|-------------|
-| Persistent (.pth) | No | Yes | ✅ Yes |
-| Direct Patch | Yes | No | ❌ No |
-
-## How the Hook Works
-
-The `MempalaceSyncHook` is a `post_reply` hook that:
-
-1. Triggers after each assistant reply
-2. Runs asynchronously (non-blocking)
-3. Calls `sync_mempalace.py` to:
-   - Find the latest session file
-   - Convert it to conversation format
-   - Import it into MemPalace using `mempalace mine --mode convos`
 
 ## Memory Retrieval Priority
 

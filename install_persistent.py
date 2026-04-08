@@ -13,6 +13,7 @@ modules when Python starts. Unlike modifying CoPaw source files,
 
 import os
 import sys
+import json
 import shutil
 from pathlib import Path
 
@@ -25,12 +26,12 @@ SITE_PACKAGES = os.path.join(
 )
 
 # Files
-PATCH_MODULE = os.path.join(PLUGIN_DIR, "copaw_mempalace_patch.py")
+PATCH_MODULE = os.path.join(PLUGIN_DIR, "palace_discovery.py")
 HOOK_MODULE = os.path.join(PLUGIN_DIR, "hooks", "mempalace_sync.py")
 SYNC_SCRIPT = os.path.join(PLUGIN_DIR, "scripts", "sync_mempalace.py")
 
 # Targets
-TARGET_PATCH = os.path.join(SITE_PACKAGES, "copaw_mempalace_patch.py")
+TARGET_DISCOVERY = os.path.join(SITE_PACKAGES, "palace_discovery.py")
 TARGET_HOOK = os.path.join(
     os.path.dirname(SITE_PACKAGES),
     "copaw",
@@ -64,9 +65,9 @@ def check_prerequisites() -> bool:
     print_step("Checking prerequisites...")
 
     if not os.path.exists(PATCH_MODULE):
-        print_error(f"Patch module not found: {PATCH_MODULE}")
+        print_error(f"Discovery module not found: {PATCH_MODULE}")
         return False
-    print_success(f"Patch module found: {PATCH_MODULE}")
+    print_success(f"Discovery module found: {PATCH_MODULE}")
 
     if not os.path.exists(HOOK_MODULE):
         print_error(f"Hook module not found: {HOOK_MODULE}")
@@ -81,16 +82,16 @@ def check_prerequisites() -> bool:
     return True
 
 
-def install_patch_module() -> bool:
-    """Copy the patch module to site-packages."""
-    print_step("Installing patch module to site-packages...")
+def install_discovery_module() -> bool:
+    """Copy the discovery module to site-packages."""
+    print_step("Installing discovery module to site-packages...")
 
     try:
-        shutil.copy2(PATCH_MODULE, TARGET_PATCH)
-        print_success(f"Copied to: {TARGET_PATCH}")
+        shutil.copy2(PATCH_MODULE, TARGET_DISCOVERY)
+        print_success(f"Copied to: {TARGET_DISCOVERY}")
         return True
     except Exception as e:
-        print_error(f"Failed to copy patch module: {e}")
+        print_error(f"Failed to copy discovery module: {e}")
         return False
 
 
@@ -126,11 +127,11 @@ def install_sync_script() -> bool:
 
 
 def create_pth_file() -> bool:
-    """Create the .pth file to auto-load the patch module."""
+    """Create the .pth file to auto-load the discovery module."""
     print_step("Creating .pth file for auto-loading...")
 
     # The .pth file should contain the import statement
-    pth_content = f"# CoPaw Mempalace Sync - Auto-load patch\nimport copaw_mempalace_patch\n"
+    pth_content = "# CoPaw Mempalace Sync - Auto-load discovery module\nimport palace_discovery\n"
 
     try:
         with open(TARGET_PTH, "w", encoding="utf-8") as f:
@@ -142,13 +143,107 @@ def create_pth_file() -> bool:
         return False
 
 
+def prompt_configuration() -> None:
+    """Prompt user for optional configuration."""
+    print_header("Optional Configuration")
+    print("""
+The plugin can find mempalace automatically, but you can also
+configure it explicitly for better reliability.
+
+Options:
+  1. Set MEMPALACE_HOME environment variable (system-wide)
+  2. Create .mempalace.json in your workspace (per-workspace)
+  3. Skip configuration (use auto-discovery)
+""")
+
+    choice = input("Choose an option (1/2/3) [3]: ").strip()
+
+    if choice == "1":
+        configure_environment_variable()
+    elif choice == "2":
+        configure_workspace_config()
+    else:
+        print("\nUsing auto-discovery. You can configure later if needed.")
+        print_config_instructions()
+
+
+def configure_environment_variable() -> None:
+    """Guide user to set MEMPALACE_HOME environment variable."""
+    print_step("Environment Variable Configuration")
+    print("""
+To set MEMPALACE_HOME as a SYSTEM environment variable:
+
+Windows:
+  1. Open System Properties (Win+Pause)
+  2. Click "Advanced system settings"
+  3. Click "Environment Variables"
+  4. Under "System variables", click "New"
+  5. Variable name: MEMPALACE_HOME
+  6. Variable value: C:\\Users\\YourName\\.mempalace
+     (adjust to your actual mempalace location)
+
+Linux/Mac:
+  Add to ~/.bashrc or ~/.zshrc:
+    export MEMPALACE_HOME="$HOME/.mempalace"
+
+After setting, restart your terminal/CoPaw daemon.
+""")
+
+
+def configure_workspace_config() -> None:
+    """Create .mempalace.json in the workspace."""
+    print_step("Workspace Configuration")
+
+    # Try to detect workspace directory
+    workspace_dir = os.environ.get(
+        "WORKING_DIR",
+        os.path.join(os.path.expanduser("~"), ".copaw", "workspaces", "default"),
+    )
+
+    print(f"\nWorkspace directory: {workspace_dir}")
+
+    # Try to auto-detect palace location
+    default_palace = os.path.join(os.path.expanduser("~"), ".mempalace", "palace")
+    palace_input = input(f"Palace directory [{default_palace}]: ").strip()
+    palace_dir = palace_input if palace_input else default_palace
+
+    config = {"palace_dir": palace_dir}
+    config_file = os.path.join(workspace_dir, ".mempalace.json")
+
+    try:
+        os.makedirs(workspace_dir, exist_ok=True)
+        with open(config_file, "w", encoding="utf-8") as f:
+            json.dump(config, f, indent=2)
+        print_success(f"Created: {config_file}")
+    except Exception as e:
+        print_error(f"Failed to create config: {e}")
+
+
+def print_config_instructions() -> None:
+    """Print configuration instructions for later."""
+    print("""
+Configuration Options (if auto-discovery doesn't work):
+
+1. Environment Variable:
+   Set MEMPALACE_HOME to your mempalace directory (e.g., C:\\Users\\You\\.mempalace)
+
+2. Workspace Config:
+   Create .mempalace.json in your workspace:
+   {
+     "palace_dir": "C:\\Users\\You\\.mempalace\\palace"
+   }
+
+3. Or let auto-discovery handle it (it checks common locations).
+""")
+
+
 def uninstall() -> bool:
     """Remove the installed files."""
     print_step("Uninstalling...")
 
     files_to_remove = [
         TARGET_PTH,
-        TARGET_PATCH,
+        TARGET_DISCOVERY,
         TARGET_HOOK,
     ]
 
@@ -175,13 +270,16 @@ def main():
         print("  copaw daemon restart")
         return
 
+    # Check for --no-config flag
+    skip_config = "--no-config" in sys.argv
+
     print(f"\nPlugin directory: {PLUGIN_DIR}")
     print(f"Site-packages: {SITE_PACKAGES}")
 
     # Run installation steps
     steps = [
         ("Check prerequisites", check_prerequisites),
-        ("Install patch module", install_patch_module),
+        ("Install discovery module", install_discovery_module),
         ("Install hook module", install_hook_module),
         ("Install sync script", install_sync_script),
         ("Create .pth file", create_pth_file),
@@ -194,14 +292,26 @@ def main():
             print('=' * 60)
             sys.exit(1)
 
+    # Prompt for configuration unless --no-config
+    if not skip_config:
+        prompt_configuration()
+
     print_header("Installation Complete!")
     print("""
 This installation is PERSISTENT across CoPaw updates!
 
 How it works:
-    1. A .pth file in site-packages auto-loads the patch module
-    2. The patch module monkey-patches CoPawAgent._register_hooks
-    3. No CoPaw source files are modified
+    1. A .pth file in site-packages auto-loads the discovery module
+    2. The discovery module finds your mempalace palace directory
+    3. The hook monkey-patches CoPawAgent to add mempalace sync
+    4. No CoPaw source files are modified
+
+Palace Discovery Order:
+    1. MEMPALACE_HOME environment variable
+    2. .mempalace.json in workspace directory
+    3. Auto-discovery via pip show
+    4. Common installation locations
+    5. Default: ~/.mempalace/palace
 
 Next steps:
     1. Restart CoPaw daemon:
@@ -210,7 +320,7 @@ Next steps:
     2. Test the sync:
        - Have a conversation with your CoPaw agent
        - Check mempalace status:
-         mempalace status
+         python -m palace_discovery
 
 To uninstall:
     python install_persistent.py --uninstall
